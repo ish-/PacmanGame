@@ -2,12 +2,13 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <list>
+#include <memory>
 
 #include "Camera.hpp"
 #include "Mesh.hpp"
 #include "SpotLight.hpp"
 
-void _render(Camera* camera, Mesh* mesh, SpotLight* spotLight)
+void _render(std::shared_ptr<Camera> camera, std::shared_ptr<Mesh> mesh, std::shared_ptr<SpotLight> spotLight)
 {
   GLuint shId = mesh->shaderId;
   glm::mat4 view = camera->model;
@@ -28,24 +29,18 @@ void _render(Camera* camera, Mesh* mesh, SpotLight* spotLight)
   mesh->draw();
 }
 
-class Scene: public std::list<Mesh*> {
+class Scene: public std::list<std::shared_ptr<Mesh>> {
 public:
-  Camera* camera;
-  SpotLight* light;
+  std::shared_ptr<Camera> camera;
+  std::shared_ptr<SpotLight> light;
 
-  Scene(Camera* camera_, SpotLight* light_): camera(camera_), light(light_)
+  Scene(std::shared_ptr<Camera> camera_, std::shared_ptr<SpotLight> light_): camera(camera_), light(light_)
   {
-  }
-
-  ~Scene()
-  {
-    for (Mesh* mesh: (*this))
-      delete mesh;
   }
 
   void render()
   {
-    for (Mesh* mesh: (*this)) {
+    for (std::shared_ptr<Mesh> mesh: (*this)) {
       if (mesh->hidden)
         continue;
       _render(camera, mesh, light);

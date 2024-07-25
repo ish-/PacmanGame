@@ -8,6 +8,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <memory>
 #include <vector>
 
 
@@ -15,10 +16,10 @@ class Mesh: public Object3D {
 public:
   GLuint shaderId;
   glm::vec3 color = glm::vec3(1., 1., 1.);
-  Geo* geo;
+  std::shared_ptr<Geo> geo;
   bool hidden = false;
 
-  Mesh(Geo* _geo, glm::vec3 _color = glm::vec3(1., 1., 1.))
+  Mesh(std::shared_ptr<Geo> _geo, glm::vec3 _color = glm::vec3(1., 1., 1.))
   {
     geo = _geo;
     color = _color;

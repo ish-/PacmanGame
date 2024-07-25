@@ -13,33 +13,35 @@
 
 #include <algorithm>
 #include <list>
+#include <memory>
 #include <random>
 
 class Game {
 private:
   Game()
   {
+    std::random_device rd;
     std::mt19937 rdGen(rd());
 
     // Scene initialization
-    spotLight = new SpotLight();
-    gameMap = new GameMap();
+    spotLight = std::make_shared<SpotLight>();
+    gameMap = std::make_unique<GameMap>();
 
     sceneCenter = glm::vec3(gameMap->size.x / 2., gameMap->size.y / 2., 0.);
     spotLight->setPosition(glm::vec3(sceneCenter.x, sceneCenter.y, 3.0));
-    camera = new Camera(W_FOV, float(W_W) / float(W_H), .1, 1000.);
+    camera = std::make_shared<Camera>(W_FOV, float(W_W) / float(W_H), .1, 1000.);
     float camZ = 11.;
     camera->setPosition(glm::vec3(-sceneCenter.x, -sceneCenter.y, -camZ));
-    scene = new Scene(camera, spotLight);
+    scene = std::make_unique<Scene>(camera, spotLight);
 
-    cubeGeo = new BoxGeo();
+    cubeGeo = std::make_shared<BoxGeo>();
     Cube::setGeo(cubeGeo);
 
     for (int i = 0; i < std::size(gameMap->grid); i++) {
       float x = i % gameMap->size.x;
       float y = int(i / gameMap->size.x);
       CubeType cubeType = gameMap->grid.at(i);
-      Cube* cube = new Cube(cubeType);
+      std::shared_ptr<Cube> cube = std::make_shared<Cube>(cubeType);
 
       glm::vec3 startPos = glm::vec3(x + .5, y + .5, 0.);
       cube->setPosition(startPos);
@@ -66,8 +68,8 @@ private:
       scene->push_back(cube);
     }
 
-    floorGeo = new RectGeo(gameMap->size.x);
-    floor = new Mesh(floorGeo, glm::vec3(.0, .1, .3));
+    floorGeo = std::make_shared<RectGeo>(gameMap->size.x);
+    floor = std::make_shared<Mesh>(floorGeo, glm::vec3(.0, .1, .3));
     floor->setScale(2.);
     floor->setPosition(glm::vec3(gameMap->size.x / 2. - .5, gameMap->size.x / 2. - .5, -.5));
     scene->push_back(floor);
@@ -76,15 +78,11 @@ private:
   ~Game()
   {
     _log("~Game()");
-    delete cubeGeo;
-    delete floorGeo;
-    delete camera;
-    delete spotLight;
-    delete scene;
+    Cube::unsetGeo();
   }
 
 public:
-  static bool checkCollision(Cube* one, Cube* two)
+  static bool checkCollision(std::shared_ptr<Cube> one, std::shared_ptr<Cube> two)
   {
     CubeBBox oneBb = one->getBBox();
     CubeBBox twoBb = two->getBBox();
@@ -110,26 +108,25 @@ public:
     return instance;
   }
 
-  GameMap* gameMap;
-  Scene* scene;
-  Camera* camera;
-  SpotLight* spotLight;
+  std::unique_ptr<GameMap> gameMap;
+  std::unique_ptr<Scene> scene;
   glm::vec3 sceneCenter;
-  Cube* player;
+  std::shared_ptr<Camera> camera;
+  std::shared_ptr<SpotLight> spotLight;
+  std::shared_ptr<Cube> player;
 
-  RectGeo* floorGeo;
-  BoxGeo* cubeGeo;
+  std::shared_ptr<RectGeo> floorGeo;
+  std::shared_ptr<BoxGeo> cubeGeo;
 
-  std::list<Cube*> dynamicCubes;
-  std::list<Cube*> staticCubes;
-  std::vector<Cube*> ghosts;
+  std::list<std::shared_ptr<Cube>> dynamicCubes;
+  std::list<std::shared_ptr<Cube>> staticCubes;
+  std::vector<std::shared_ptr<Cube>> ghosts;
 
-  Mesh* floor;
+  std::shared_ptr<Mesh> floor;
 
   int remainingFood = 0;
-  float frightenedTime = false;
+  float frightenedTime = 0.f;
 
-  std::random_device rd;
   std::mt19937 rdGen;
 
   void onLoop()
@@ -146,7 +143,7 @@ public:
 
     if (frightenedTime) {  // frightened mode
       int ghostIdx = 0;
-      for (Cube* ghost: ghosts) {
+      for (std::shared_ptr<Cube> ghost: ghosts) {
         ghost->color = remainder(app.eT, .2) > 0. ? Color(1., 1., 0.) : CONF[GHOST].color;
 
         if (app.eT - frightenedTime > FRIGHTENED_TIMEOUT) {  // RESET FRIGHTENED
@@ -157,7 +154,7 @@ public:
       }
     }
 
-    for (Cube* dynamicCube: dynamicCubes) {
+    for (std::shared_ptr<Cube> dynamicCube: dynamicCubes) {
       dynamicCube->move(app.dT);
       loopMapBounds(dynamicCube);
     }
@@ -166,7 +163,7 @@ public:
 
     _LOG = false;
     for (int i = 0; i < std::size(ghosts); i++) {
-      Cube* ghost = ghosts[i];
+      std::shared_ptr<Cube> ghost = ghosts[i];
       doCollisionsWithStaticCubes(ghost, i);
     }
     _LOG = true;
@@ -176,7 +173,7 @@ public:
 
   void doPlayerCollisionsWithGhosts()
   {
-    for (Cube* ghost: ghosts) {
+    for (std::shared_ptr<Cube> ghost: ghosts) {
       bool collision = Game::checkCollision(player, ghost);
       if (collision) {
         if (frightenedTime) {
@@ -188,9 +185,9 @@ public:
     }
   }
 
-  void doCollisionsWithStaticCubes(Cube* dynamicCube, int i = 0)
+  void doCollisionsWithStaticCubes(std::shared_ptr<Cube> dynamicCube, int i = 0)
   {
-    for (Cube* staticCube: staticCubes) {
+    for (std::shared_ptr<Cube> staticCube: staticCubes) {
       if (staticCube->hidden)
         continue;
       bool collision = Game::checkCollision(dynamicCube, staticCube);
@@ -208,15 +205,12 @@ public:
               return;
             }
           } else if (staticCube->type == SFOOD) {  // PLAYER - FOOR
-            // scene->remove(staticCube);
-            // staticCubes.remove(staticCube);
             staticCube->hidden = true;
             frightenedTime = App::get().eT;
           }
         } else if (dynamicCube->type == GHOST) {  // GHOST
           if (staticCube->type == WALL) {
             dynamicCube->model = dynamicCube->prevTransformMat;
-            // dynamicCube->dir = glm::vec2(0.);
             changeGhostDir(dynamicCube, i);
           }
         }
@@ -224,7 +218,7 @@ public:
     }
   }
 
-  void changeGhostDir(Cube* ghost, int ghostIdx = 0)
+  void changeGhostDir(std::shared_ptr<Cube> ghost, int ghostIdx = 0)
   {
     _log("<\\\\\\ changeGhostDir", ghostIdx);
     if (!ghost || !gameMap || !player)
@@ -269,7 +263,7 @@ public:
     ghost->dir = dir;
   }
 
-  void loopMapBounds(Cube* cube)
+  void loopMapBounds(std::shared_ptr<Cube> cube)
   {
     float x = cube->getPosition().x;
     if (x < 0.)

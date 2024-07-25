@@ -17,13 +17,17 @@ struct CubeBBox {
 //   float lastTime;
 // };
 
-Geo* boxGeo;
+std::shared_ptr<Geo> boxGeo;
 
 class Cube: public Mesh {
 public:
-  static void setGeo(Geo* _boxGeo)
+  static void setGeo(std::shared_ptr<Geo> _boxGeo)
   {
     boxGeo = _boxGeo;
+  }
+  static void unsetGeo()
+  {
+    boxGeo.reset();
   }
 
   float size = 1.;
